@@ -1,11 +1,16 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from app.core.config import settings
 
+connect_args = {}
+if "postgresql" in settings.DATABASE_URL:
+    connect_args["statement_cache_size"] = 0
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     pool_pre_ping=False,
     pool_recycle=3600,
+    connect_args=connect_args,
 )
 
 AsyncSessionLocal = async_sessionmaker(

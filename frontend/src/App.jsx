@@ -5,6 +5,7 @@ import Sidebar from './components/layout/Sidebar';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TasksPage from './pages/TasksPage';
+import DiscussionPage from './pages/DiscussionPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import UsersPage from './pages/UsersPage';
 import DepartmentsPage from './pages/DepartmentsPage';
@@ -64,6 +65,7 @@ function AppRoutes() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/discussion" element={<DiscussionPage />} />
         <Route path="/analytics" element={
           <TierGuard minTier={2}><AnalyticsPage /></TierGuard>
         } />

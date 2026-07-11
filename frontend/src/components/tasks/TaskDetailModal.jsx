@@ -28,7 +28,10 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
     const [reworkComment, setReworkComment] = useState('');
 
     const isAssignee = user?.id === task.assigned_to;
-    const canProgress = user?.role_tier <= 3 && task.status === 'in_progress' && isAssignee;
+    const isCoAssignee = task.co_assignees?.some(u => u.id === user?.id) || false;
+    const isAssigned = isAssignee || isCoAssignee;
+    const canProgress = user?.role_tier <= 3 && task.status === 'in_progress' && isAssigned;
+    const canDelete = user?.role_tier === 1 || (user?.role_tier === 2 && user.department_id === task.department_id);
 
     useEffect(() => {
         taskService.getComments(task.id).then(r => setComments(r.data)).catch(() => { });
@@ -36,6 +39,23 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
             taskService.getAuditLog(task.id).then(r => setAuditLog(r.data)).catch(() => { });
         }
     }, [task.id, user]);
+
+    const handleDeleteTask = async () => {
+        if (!window.confirm('Are you sure you want to permanently delete this task?')) return;
+        try {
+            setLoading(true);
+            await taskService.delete(task.id);
+            showToast('Task deleted successfully');
+            setTimeout(() => {
+                onRefresh?.();
+                onClose();
+            }, 1000);
+        } catch (e) {
+            showToast(e.response?.data?.detail ?? 'Failed to delete task', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const showToast = (msg, type = 'success') => {
         setToast({ msg, type });
@@ -160,62 +180,70 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
                 )}
 
                 {/* State machine actions */}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-                    {task.status === 'yet_to_start' && isAssignee && (
-                        <button className="btn btn-primary" onClick={handleStart}>▶ Start Task</button>
-                    )}
-                    {task.status === 'in_progress' && isAssignee && (
-                        <button className="btn btn-success" onClick={handleSubmitReview}>
-                            <ChevronRight size={14} /> Submit for Review
-                        </button>
-                    )}
-                    {task.status === 'in_review' && user?.role_tier <= 2 && (
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', width: '100%' }}>
-                            <div>
-                                <label className="form-label">Decision</label>
-                                <select
-                                    className="form-select"
-                                    value={decision}
-                                    onChange={e => setDecision(e.target.value)}
-                                    style={{ width: 'auto' }}
-                                >
-                                    <option value="">Choose…</option>
-                                    <option value="completed">✅ Complete</option>
-                                    <option value="rework">🔄 Rework</option>
-                                </select>
-                            </div>
-                            {decision === 'rework' && (
-                                <>
-                                    <div>
-                                        <label className="form-label">Reset to %</label>
-                                        <input
-                                            type="number"
-                                            className="form-input"
-                                            min={0} max={99}
-                                            value={reworkProgress}
-                                            onChange={e => setReworkProgress(Number(e.target.value))}
-                                            style={{ width: 80 }}
-                                        />
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <label className="form-label">Rework Notes *</label>
-                                        <input
-                                            className="form-input"
-                                            value={reworkComment}
-                                            onChange={e => setReworkComment(e.target.value)}
-                                            placeholder="Mandatory feedback…"
-                                        />
-                                    </div>
-                                </>
-                            )}
-                            <button
-                                className={`btn ${decision === 'completed' ? 'btn-success' : 'btn-danger'}`}
-                                onClick={handleDecision}
-                                disabled={!decision || loading}
-                            >
-                                Submit Decision
+                <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {(task.status === 'yet_to_start' || task.status === 'rework') && isAssigned && (
+                            <button className="btn btn-primary" onClick={handleStart}>▶ Start Task</button>
+                        )}
+                        {task.status === 'in_progress' && isAssigned && (
+                            <button className="btn btn-success" onClick={handleSubmitReview}>
+                                <ChevronRight size={14} /> Submit for Review
                             </button>
-                        </div>
+                        )}
+                        {task.status === 'in_review' && user?.role_tier <= 2 && (
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                <div>
+                                    <label className="form-label">Decision</label>
+                                    <select
+                                        className="form-select"
+                                        value={decision}
+                                        onChange={e => setDecision(e.target.value)}
+                                        style={{ width: 'auto' }}
+                                    >
+                                        <option value="">Choose…</option>
+                                        <option value="completed">✅ Complete</option>
+                                        <option value="rework">🔄 Rework</option>
+                                    </select>
+                                </div>
+                                {decision === 'rework' && (
+                                    <>
+                                        <div>
+                                            <label className="form-label">Reset to %</label>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                min={0} max={99}
+                                                value={reworkProgress}
+                                                onChange={e => setReworkProgress(Number(e.target.value))}
+                                                style={{ width: 80 }}
+                                            />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <label className="form-label">Rework Notes *</label>
+                                            <input
+                                                className="form-input"
+                                                value={reworkComment}
+                                                onChange={e => setReworkComment(e.target.value)}
+                                                placeholder="Mandatory feedback…"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                                <button
+                                    className={`btn ${decision === 'completed' ? 'btn-success' : 'btn-danger'}`}
+                                    onClick={handleDecision}
+                                    disabled={!decision || loading}
+                                >
+                                    Submit Decision
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {canDelete && (
+                        <button className="btn btn-danger" onClick={handleDeleteTask} disabled={loading} style={{ background: '#ef4444' }}>
+                            🗑️ Delete Task
+                        </button>
                     )}
                 </div>
 
@@ -243,6 +271,14 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
                 {tab === 'details' && (
                     <div className="detail-grid">
                         <div className="detail-item"><label>Assigned To</label><p>{task.assignee?.first_name} {task.assignee?.last_name}</p></div>
+                        <div className="detail-item">
+                            <label>Co-Assignees</label>
+                            <p>
+                                {task.co_assignees && task.co_assignees.length > 0
+                                    ? task.co_assignees.map(u => `${u.first_name} ${u.last_name}`).join(', ')
+                                    : 'None'}
+                            </p>
+                        </div>
                         <div className="detail-item"><label>Assigned By</label><p>{task.assigner?.first_name} {task.assigner?.last_name}</p></div>
                         <div className="detail-item"><label>Department</label><p>{task.department?.name ?? '—'}</p></div>
                         <div className="detail-item"><label>Priority</label><PriorityBadge priority={task.priority} /></div>

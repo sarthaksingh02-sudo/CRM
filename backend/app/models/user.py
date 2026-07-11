@@ -10,6 +10,8 @@ from sqlalchemy import (
     Text,
     CheckConstraint,
     UniqueConstraint,
+    Table,
+    Column,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base
@@ -87,6 +89,16 @@ class User(Base):
     )
 
 
+# ──────────────────────────── TaskAssignee Table ────────────────────────────
+
+task_assignees = Table(
+    "task_assignees",
+    Base.metadata,
+    Column("task_id", Integer, ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 # ──────────────────────────── Task ────────────────────────────
 
 class Task(Base):
@@ -130,6 +142,9 @@ class Task(Base):
     department: Mapped["Department"] = relationship("Department", back_populates="tasks")
     assignee: Mapped["User"] = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_tasks")
     assigner: Mapped["User"] = relationship("User", foreign_keys=[assigned_by], back_populates="created_tasks")
+    co_assignees: Mapped[list["User"]] = relationship(
+        "User", secondary=task_assignees, lazy="selectin"
+    )
     comments: Mapped[list["TaskComment"]] = relationship(
         "TaskComment", back_populates="task", cascade="all, delete-orphan"
     )
@@ -202,3 +217,24 @@ class TaskAuditLog(Base):
 
     task: Mapped["Task"] = relationship("Task", back_populates="audit_logs")
     user: Mapped["User"] = relationship("User", back_populates="audit_logs")
+
+
+# ──────────────────────────── DiscussionMessage ────────────────────────────
+
+class DiscussionMessage(Base):
+    __tablename__ = "discussion_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    user: Mapped["User"] = relationship("User", lazy="selectin")
+

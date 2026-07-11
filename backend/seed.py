@@ -22,9 +22,11 @@ DEPARTMENTS = [
     "Digital",
 ]
 
+from app.core.config import settings
+
 ADMIN = {
-    "email": "admin@voxomate.com",
-    "password": "Admin@123",
+    "email": settings.ADMIN_EMAIL,
+    "password": settings.ADMIN_PASSWORD,
     "first_name": "Executive",
     "last_name": "Admin",
     "role_tier": 1,
@@ -32,24 +34,6 @@ ADMIN = {
 
 
 async def seed():
-    # Auto-create database if it doesn't exist
-    from app.core.config import settings
-    from sqlalchemy.ext.asyncio import create_async_engine
-    from sqlalchemy import text
-
-    # Split database name from URL
-    base_url, db_name = settings.DATABASE_URL.rsplit('/', 1)
-
-    print(f"Creating database {db_name} if not exists...")
-    temp_engine = create_async_engine(base_url, isolation_level="AUTOCOMMIT")
-    async with temp_engine.connect() as conn:
-        await conn.execute(text(f"CREATE DATABASE IF NOT EXISTS {db_name} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
-    await temp_engine.dispose()
-
-    # Ensure tables exist
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
     async with AsyncSessionLocal() as db:
         # Departments
         for name in DEPARTMENTS:

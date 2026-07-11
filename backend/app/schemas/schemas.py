@@ -76,6 +76,7 @@ class TaskCreate(BaseModel):
     assigned_to: int
     due_date: datetime
     expected_delivery: datetime
+    co_assignee_ids: Optional[list[int]] = None
 
 
 class TaskUpdate(BaseModel):
@@ -84,6 +85,8 @@ class TaskUpdate(BaseModel):
     description: Optional[str] = None
     priority: Optional[str] = Field(None, pattern=r"^(low|medium|high)$")
     expected_delivery: Optional[datetime] = None
+    assigned_to: Optional[int] = None
+    co_assignee_ids: Optional[list[int]] = None
 
 
 class TaskStatusUpdate(BaseModel):
@@ -129,6 +132,7 @@ class TaskRead(BaseModel):
     department: Optional[DepartmentRead] = None
     assignee: Optional[UserRead] = None
     assigner: Optional[UserRead] = None
+    co_assignees: list[UserRead] = []
 
     model_config = {"from_attributes": True}
 
@@ -195,3 +199,24 @@ class PersonalMetrics(BaseModel):
     in_review: int
     overdue: int
     avg_progress: float
+
+
+# ──────────────────────────── Discussion Schemas ────────────────────────────
+
+class DiscussionCreate(BaseModel):
+    content: str = Field(..., min_length=1)
+
+
+class DiscussionUpdate(BaseModel):
+    content: str = Field(..., min_length=1)
+
+
+class DiscussionRead(BaseModel):
+    id: int
+    user_id: int
+    content: str
+    created_at: datetime
+    updated_at: datetime
+    user: Optional[UserRead] = None
+
+    model_config = {"from_attributes": True}

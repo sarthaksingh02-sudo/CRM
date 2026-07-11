@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
     LayoutDashboard, ChartBar, ClipboardList,
-    Users, Building2, LogOut, X
+    Users, Building2, LogOut, X, MessageSquare
 } from 'lucide-react';
 
 const TIER_LABEL = { 1: 'Executive Admin', 2: 'Dept Head', 3: 'Staff' };
@@ -24,6 +24,7 @@ export default function Sidebar({ isOpen, onClose }) {
     const links = [
         { to: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard', tiers: [1, 2, 3] },
         { to: '/tasks', icon: <ClipboardList size={18} />, label: 'Tasks', tiers: [1, 2, 3] },
+        { to: '/discussion', icon: <MessageSquare size={18} />, label: 'Discussion', tiers: [1, 2, 3] },
         { to: '/analytics', icon: <ChartBar size={18} />, label: 'Analytics', tiers: [1, 2] },
         { to: '/users', icon: <Users size={18} />, label: 'Team', tiers: [1, 2] },
         { to: '/departments', icon: <Building2 size={18} />, label: 'Departments', tiers: [1] },

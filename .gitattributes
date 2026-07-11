@@ -1,0 +1,7 @@
+# Normalize all text files to LF in the repository
+* text=auto
+
+# Explicitly declare text files you want to always use LF
+*.js text eol=lf
+*.json text eol=lf
+*.env* text eol=lf

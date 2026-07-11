@@ -58,7 +58,7 @@ voxo-mate/
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & Deployment Guide
 
 ### 1. MySQL — create the database
 ```sql
@@ -70,6 +70,7 @@ CREATE DATABASE voxomate CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 cd backend
 python -m venv venv
 venv\Scripts\activate          # Windows
+# source venv/bin/activate     # macOS/Linux
 pip install -r requirements.txt
 ```
 
@@ -79,38 +80,50 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Edit `backend/.env`:
-```
-DATABASE_URL=mysql+aiomysql://root:YOUR_PASSWORD@localhost:3306/voxomate
-SECRET_KEY=replace_with_a_64_char_random_string
-```
+Edit `backend/.env` with your production settings.
 
-### 4. Backend — start the server
+### 4. Backend — Database Migrations (Alembic)
+Instead of development-only table generation, apply migrations to set up or update the schema:
 ```bash
-# From the project root (voxo-mate/)
-backend\venv\Scripts\uvicorn app.main:app --reload --port 8001 --host 0.0.0.0 --app-dir backend
+cd backend
+# Run migrations to bring the database to the latest schema version
+venv\Scripts\alembic upgrade head
 ```
-
-API Docs → **http://localhost:8001/api/docs**
 
 ### 5. Seed initial data (first time only)
 ```bash
 cd backend
 venv\Scripts\python seed.py
 ```
-This creates the 4 departments and a default admin account:
+This creates the 4 departments and the default admin account:
 | Email | Password | Role |
 |---|---|---|
 | admin@voxomate.com | Admin@123 | Executive Admin (Tier 1) |
 
-### 6. Frontend — run dev server
+### 6. Backend — Start production/dev server
+- **Dev:** `backend\venv\Scripts\uvicorn app.main:app --reload --port 8001 --host 0.0.0.0 --app-dir backend`
+- **Production:** Run uvicorn behind a reverse proxy (e.g. Nginx) using Gunicorn workers:
+  ```bash
+  gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8001
+  ```
+
+API Docs → **http://localhost:8001/api/docs**
+
+### 7. Frontend — Production Build
+For local development:
 ```bash
 cd frontend
 npm install      # if not done yet
 npm run dev
 ```
 
-App → **http://localhost:5173**
+For production deployment:
+```bash
+cd frontend
+npm install
+npm run build
+```
+This compiles the frontend code to highly optimized, static HTML, CSS, and JS files located in `frontend/dist/`. These files can be quickly served using Nginx, Cloudflare Pages, Vercel, or Netlify.
 
 ---
 

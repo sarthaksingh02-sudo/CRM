@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { deptService } from '../services/taskService';
 import { Spinner, EmptyState } from '../components/ui/Shared';
 import { Building2, Plus } from 'lucide-react';
+import DepartmentReportModal from '../components/departments/DepartmentReportModal';
 
 export default function DepartmentsPage() {
+    const { user } = useAuth();
     const [depts, setDepts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState('');
+    const [selectedReportDept, setSelectedReportDept] = useState(null);
 
     const load = async () => {
         setLoading(true);
@@ -72,25 +76,45 @@ export default function DepartmentsPage() {
                 {loading ? <Spinner /> : depts.length === 0 ? <EmptyState message="No departments yet" /> : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
                         {depts.map((d, i) => (
-                            <div key={d.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                                <div style={{
-                                    width: 44, height: 44, borderRadius: 'var(--r-sm)',
-                                    background: `hsl(${(i * 47) % 360}, 65%, 22%)`,
-                                    display: 'grid', placeItems: 'center', flexShrink: 0,
-                                    color: `hsl(${(i * 47) % 360}, 80%, 70%)`,
-                                    fontSize: '1.2rem', fontWeight: 800,
-                                }}>
-                                    {d.name[0].toUpperCase()}
+                            <div key={d.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                    <div style={{
+                                        width: 44, height: 44, borderRadius: 'var(--r-sm)',
+                                        background: `hsl(${(i * 47) % 360}, 65%, 22%)`,
+                                        display: 'grid', placeItems: 'center', flexShrink: 0,
+                                        color: `hsl(${(i * 47) % 360}, 80%, 70%)`,
+                                        fontSize: '1.2rem', fontWeight: 800,
+                                    }}>
+                                        {d.name[0].toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <p style={{ fontWeight: 700, fontSize: '.9rem' }}>{d.name}</p>
+                                        <p style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>ID #{d.id}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p style={{ fontWeight: 700, fontSize: '.9rem' }}>{d.name}</p>
-                                    <p style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>ID #{d.id}</p>
-                                </div>
+                                {user && (user.role_tier === 1 || (user.role_tier === 2 && user.department_id === d.id)) && (
+                                    <button
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ padding: '6px 8px', borderRadius: '50%', width: 32, height: 32, display: 'grid', placeItems: 'center' }}
+                                        onClick={() => setSelectedReportDept(d)}
+                                        title="View Department Monthly Report"
+                                    >
+                                        📊
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>
                 )}
             </div>
+
+            {selectedReportDept && (
+                <DepartmentReportModal
+                    id={selectedReportDept.id}
+                    name={selectedReportDept.name}
+                    onClose={() => setSelectedReportDept(null)}
+                />
+            )}
         </div>
     );
 }

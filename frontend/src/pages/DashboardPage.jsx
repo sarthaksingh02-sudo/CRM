@@ -19,6 +19,7 @@ export default function DashboardPage() {
     const [deptMetrics, setDeptMetrics] = useState([]);
     const [recentTasks, setRecentTasks] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showAlert, setShowAlert] = useState(false);
 
     const fetch = useCallback(async () => {
         setLoading(true);
@@ -29,6 +30,9 @@ export default function DashboardPage() {
             ]);
             setPersonal(pm.data);
             setRecentTasks(tasks.data.slice(0, 6));
+            if (pm.data.overdue > 0) {
+                setShowAlert(true);
+            }
             if (user?.role_tier <= 2) {
                 const dm = await taskService.deptMetrics();
                 setDeptMetrics(dm.data);
@@ -173,6 +177,37 @@ export default function DashboardPage() {
                     )}
                 </div>
             </div>
+
+            {showAlert && (
+                <div className="notification-alert" style={{
+                    position: 'fixed',
+                    bottom: '24px',
+                    right: '24px',
+                    zIndex: 1000,
+                    maxWidth: '400px',
+                    background: 'rgba(239, 68, 68, 0.15)',
+                    borderColor: '#ef4444',
+                    borderStyle: 'solid',
+                    borderWidth: '1px',
+                    padding: '16px',
+                    borderRadius: 'var(--r-md)',
+                    backdropFilter: 'blur(16px)',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <span style={{ fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <AlertTriangle size={18} /> Urgent Overdue Alert
+                        </span>
+                        <button onClick={() => setShowAlert(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1rem', cursor: 'pointer' }}>×</button>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', margin: 0 }}>
+                        Hi {user?.first_name}, you have <strong>{personal?.overdue}</strong> task(s) currently marked as overdue. Please review them and update their progress.
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

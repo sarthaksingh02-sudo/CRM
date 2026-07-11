@@ -35,7 +35,7 @@ copy backend\.env.example backend\.env
 // turbo
 5. Start the FastAPI backend server:
 ```
-backend\venv\Scripts\uvicorn app.main:app --reload --port 8000 --app-dir backend
+backend\venv\Scripts\uvicorn app.main:app --reload --port 8001 --app-dir backend
 ```
 
 // turbo
@@ -46,5 +46,5 @@ cd frontend && npm run dev
 
 ## URLs
 - Frontend:  http://localhost:5173
-- API Docs:  http://localhost:8000/api/docs
-- Health:    http://localhost:8000/healthz
+- API Docs:  http://localhost:8001/api/docs
+- Health:    http://localhost:8001/healthz

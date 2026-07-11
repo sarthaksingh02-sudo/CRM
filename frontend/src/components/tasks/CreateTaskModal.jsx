@@ -12,6 +12,7 @@ export default function CreateTaskModal({ onClose, onCreated }) {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [coAssigneeIds, setCoAssigneeIds] = useState([]);
 
     useEffect(() => {
         deptService.list().then(r => setDepts(r.data)).catch(() => { });
@@ -29,6 +30,7 @@ export default function CreateTaskModal({ onClose, onCreated }) {
                 ...form,
                 department_id: Number(form.department_id),
                 assigned_to: Number(form.assigned_to),
+                co_assignee_ids: coAssigneeIds.map(Number),
                 due_date: new Date(form.due_date).toISOString(),
                 expected_delivery: new Date(form.expected_delivery).toISOString(),
             });
@@ -97,6 +99,41 @@ export default function CreateTaskModal({ onClose, onCreated }) {
                                     <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
                                 ))}
                             </select>
+                        </div>
+                    </div>
+
+                    <div className="form-group" style={{ marginBottom: '16px' }}>
+                        <label className="form-label">Co-Assignees (Optional)</label>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                            gap: '8px',
+                            maxHeight: '120px',
+                            overflowY: 'auto',
+                            padding: '10px',
+                            background: 'var(--surface-3)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--r-sm)'
+                        }}>
+                            {users.filter(u => u.id !== Number(form.assigned_to)).map(u => {
+                                const isChecked = coAssigneeIds.includes(u.id);
+                                return (
+                                    <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '.8rem', userSelect: 'none' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                                if (isChecked) {
+                                                    setCoAssigneeIds(coAssigneeIds.filter(id => id !== u.id));
+                                                } else {
+                                                    setCoAssigneeIds([...coAssigneeIds, u.id]);
+                                                }
+                                            }}
+                                        />
+                                        <span>{u.first_name} {u.last_name}</span>
+                                    </label>
+                                );
+                            })}
                         </div>
                     </div>
 

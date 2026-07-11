@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { taskService } from '../services/taskService';
+import api from '../services/api';
 import { Spinner } from '../components/ui/Shared';
+import { Download } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend, RadialBarChart, RadialBar
@@ -39,6 +41,35 @@ export default function AnalyticsPage() {
     const [deptMetrics, setDeptMetrics] = useState([]);
     const [personal, setPersonal] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [auditStart, setAuditStart] = useState('');
+    const [auditEnd, setAuditEnd] = useState('');
+    const [exportingAudit, setExportingAudit] = useState(false);
+
+    const handleExportAudit = async () => {
+        try {
+            setExportingAudit(true);
+            let url = '/tasks/audit/export/csv';
+            const params = [];
+            if (auditStart) params.push(`start_date=${auditStart}`);
+            if (auditEnd) params.push(`end_date=${auditEnd}`);
+            if (params.length > 0) {
+                url += '?' + params.join('&');
+            }
+            const response = await api.get(url, { responseType: 'blob' });
+            const blob = new Blob([response.data], { type: 'text/csv' });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.setAttribute('download', `audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error('Failed to export audit logs:', err);
+        } finally {
+            setExportingAudit(false);
+        }
+    };
 
     useEffect(() => {
         const fetchAll = async () => {
@@ -227,6 +258,43 @@ export default function AnalyticsPage() {
                         </div>
                     )}
                 </div>
+
+                {user?.role_tier <= 2 && (
+                    <div className="card" style={{ marginTop: 28 }}>
+                        <p className="chart-title">Export Day-Wise Audit Logs</p>
+                        <p style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                            Download a CSV export of all audit logs. Department heads only see logs for tasks within their department.
+                        </p>
+                        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                            <div>
+                                <label className="form-label">Start Date</label>
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={auditStart}
+                                    onChange={e => setAuditStart(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <label className="form-label">End Date</label>
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={auditEnd}
+                                    onChange={e => setAuditEnd(e.target.value)}
+                                />
+                            </div>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleExportAudit}
+                                disabled={exportingAudit}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                <Download size={14} /> {exportingAudit ? 'Exporting...' : 'Export Audit Logs (CSV)'}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

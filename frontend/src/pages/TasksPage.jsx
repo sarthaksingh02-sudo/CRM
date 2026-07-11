@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { taskService } from '../services/taskService';
+import api from '../services/api';
 import TaskCard from '../components/tasks/TaskCard';
 import CreateTaskModal from '../components/tasks/CreateTaskModal';
 import { Spinner, EmptyState, parseLocalOrUTC } from '../components/ui/Shared';
-import { Plus, Search, Filter } from 'lucide-react';
+import { Plus, Search, Filter, Download } from 'lucide-react';
 import { useEffect } from 'react';
 
 const STATUSES = ['', 'yet_to_start', 'in_progress', 'in_review', 'completed', 'rework'];
@@ -28,6 +29,26 @@ export default function TasksPage() {
     const [overdueOnly, setOverdueOnly] = useState(false);
     const [view, setView] = useState('board'); // board | list
     const [showCreate, setShowCreate] = useState(false);
+    const [exporting, setExporting] = useState(false);
+
+    const handleExport = async () => {
+        try {
+            setExporting(true);
+            const response = await api.get('/tasks/export/csv', { responseType: 'blob' });
+            const blob = new Blob([response.data], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `tasks_export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (err) {
+            console.error('Failed to export tasks:', err);
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const canCreate = user?.role_tier <= 2;
 
@@ -70,6 +91,9 @@ export default function TasksPage() {
                         className={`btn ${view === 'list' ? 'btn-primary' : 'btn-ghost'} btn-sm`}
                         onClick={() => setView('list')}
                     >List</button>
+                    <button className="btn btn-ghost btn-sm" onClick={handleExport} disabled={exporting} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Download size={14} /> {exporting ? 'Exporting...' : 'Export (CSV)'}
+                    </button>
                     {canCreate && (
                         <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
                             <Plus size={16} /> New Task

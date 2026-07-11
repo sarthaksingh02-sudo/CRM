@@ -36,4 +36,5 @@ export const userService = {
 export const deptService = {
     list: () => api.get('/departments/'),
     create: (name) => api.post('/departments/', { name }),
+    monthlyReport: (id) => api.get(`/departments/${id}/monthly-report`),
 };

@@ -1,18 +1,16 @@
-"""
-Task router — enforces full RBAC state machine, audit logging on every
-significant transition, and the required PATCH progress endpoint.
-"""
+import csv
+import io
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, UploadFile, File, status, Response
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_tier1, require_tier2, require_tier3
-from app.models.user import Task, TaskStatus, TaskComment, TaskAttachment, User, Department
+from app.models.user import Task, TaskStatus, TaskComment, TaskAttachment, User, Department, task_assignees
 from app.schemas.schemas import (
     AuditLogRead,
     AttachmentRead,
@@ -61,6 +59,7 @@ async def _load_task_with_relations(db: AsyncSession, task_id: int) -> Task:
             selectinload(Task.department),
             selectinload(Task.assignee).selectinload(User.department),
             selectinload(Task.assigner).selectinload(User.department),
+            selectinload(Task.co_assignees).selectinload(User.department),
         )
         .where(Task.id == task_id)
     )
@@ -93,6 +92,9 @@ async def create_task(
         progress_percentage=0,
         is_overdue=False,
     )
+    if payload.co_assignee_ids:
+        co_users_res = await db.execute(select(User).where(User.id.in_(payload.co_assignee_ids)))
+        task.co_assignees = co_users_res.scalars().all()
     db.add(task)
     await db.flush()
     await write_audit(db, task.id, current_user.id, "TASK_CREATED", None, task.title)
@@ -111,13 +113,21 @@ async def list_tasks(
         selectinload(Task.department),
         selectinload(Task.assignee).selectinload(User.department),
         selectinload(Task.assigner).selectinload(User.department),
+        selectinload(Task.co_assignees),
     )
 
     # RBAC scoping
     if current_user.role_tier == 2:
         q = q.where(Task.department_id == current_user.department_id)
     elif current_user.role_tier == 3:
-        q = q.where(Task.assigned_to == current_user.id)
+        q = q.join(
+            task_assignees,
+            (Task.id == task_assignees.c.task_id),
+            isouter=True
+        ).where(
+            (Task.assigned_to == current_user.id) |
+            (task_assignees.c.user_id == current_user.id)
+        )
 
     if status_filter:
         q = q.where(Task.status == status_filter)
@@ -127,7 +137,7 @@ async def list_tasks(
         q = q.where(Task.is_overdue == True)
 
     result = await db.execute(q)
-    return result.scalars().all()
+    return result.scalars().unique().all()
 
 
 @router.get("/{task_id}", response_model=TaskRead, summary="Get task by ID")
@@ -162,6 +172,14 @@ async def update_task(
             old = str(task.expected_delivery)
             setattr(task, field, value)
             await write_audit(db, task.id, current_user.id, "DATE_SHIFT", old, str(value))
+        elif field == "assigned_to":
+            old = str(task.assigned_to)
+            setattr(task, field, value)
+            await write_audit(db, task.id, current_user.id, "ASSIGNEE_REASSIGNED", old, str(value))
+        elif field == "co_assignee_ids":
+            co_users_res = await db.execute(select(User).where(User.id.in_(value)))
+            task.co_assignees = co_users_res.scalars().all()
+            await write_audit(db, task.id, current_user.id, "CO_ASSIGNEES_CHANGED", "N/A", f"Co-assignees updated; count: {len(task.co_assignees)}")
         else:
             setattr(task, field, value)
 
@@ -169,22 +187,23 @@ async def update_task(
     return await _load_task_with_relations(db, task.id)
 
 
-@router.delete("/{task_id}", status_code=204, summary="Delete task (Tier 1 only)")
+@router.delete("/{task_id}", status_code=204, summary="Delete task (Tier 1 & 2)")
 async def delete_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_tier1),
+    current_user: User = Depends(require_tier2),
 ):
     result = await db.execute(select(Task).where(Task.id == task_id))
     task = result.scalar_one_or_none()
     if not task:
         raise HTTPException(404, "Task not found")
+    _assert_can_write_task(current_user, task)
     await db.delete(task)
 
 
 # ──────────────────────────── State Machine Endpoints ────────────────────────────
 
-@router.patch("/{task_id}/start", response_model=TaskRead, summary="Start task (assignee only)")
+@router.patch("/{task_id}/start", response_model=TaskRead, summary="Start task (assignee or co-assignee only)")
 async def start_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
@@ -195,10 +214,11 @@ async def start_task(
     if not task:
         raise HTTPException(404, "Task not found")
 
-    if current_user.role_tier == 3 and task.assigned_to != current_user.id:
+    is_assigned = (task.assigned_to == current_user.id) or (current_user.id in [c.id for c in task.co_assignees])
+    if current_user.role_tier == 3 and not is_assigned:
         raise HTTPException(403, "You can only start tasks assigned to you")
 
-    if task.status != TaskStatus.YET_TO_START:
+    if task.status not in (TaskStatus.YET_TO_START, TaskStatus.REWORK):
         raise HTTPException(409, f"Cannot start task in status '{task.status}'")
 
     old_status = task.status
@@ -223,12 +243,12 @@ async def update_progress(
     if not task:
         raise HTTPException(404, "Task not found")
 
-    # Only assignee (Tier 3) or write-capable roles can update progress
-    if current_user.role_tier == 3 and task.assigned_to != current_user.id:
-        raise HTTPException(403, "Progress can only be updated by the assignee")
+    is_assigned = (task.assigned_to == current_user.id) or (current_user.id in [c.id for c in task.co_assignees])
+    if current_user.role_tier == 3 and not is_assigned:
+        raise HTTPException(403, "Progress can only be updated by a task assignee")
 
-    if task.status not in (TaskStatus.IN_PROGRESS, TaskStatus.REWORK):
-        raise HTTPException(409, f"Cannot update progress when task is '{task.status}'")
+    if task.status != TaskStatus.IN_PROGRESS:
+        raise HTTPException(409, f"Cannot update progress when task status is '{task.status}'. Start it first if it is yet_to_start or in rework.")
 
     old_progress = task.progress_percentage
     new_progress = payload.progress_percentage
@@ -264,8 +284,9 @@ async def submit_for_review(
     if not task:
         raise HTTPException(404, "Task not found")
 
-    if current_user.role_tier == 3 and task.assigned_to != current_user.id:
-        raise HTTPException(403, "Only the assignee can submit a task for review")
+    is_assigned = (task.assigned_to == current_user.id) or (current_user.id in [c.id for c in task.co_assignees])
+    if current_user.role_tier == 3 and not is_assigned:
+        raise HTTPException(403, "Only the assignee or a co-assignee can submit a task for review")
 
     if task.status != TaskStatus.IN_PROGRESS:
         raise HTTPException(409, f"Task must be in_progress to submit for review; current: '{task.status}'")
@@ -308,12 +329,6 @@ async def review_decision(
         task.status = TaskStatus.REWORK
         task.progress_percentage = payload.rework_progress  # type: ignore[assignment]
         await write_audit(db, task.id, current_user.id, "STATUS_CHANGE", old_status, TaskStatus.REWORK)
-        # Force state back to in_progress for assignee to continue
-        task.status = TaskStatus.IN_PROGRESS
-        await write_audit(
-            db, task.id, current_user.id, "REWORK_INITIATED",
-            str(100), str(payload.rework_progress)
-        )
 
         # Add mandatory rework comment
         comment = TaskComment(
@@ -460,8 +475,15 @@ async def personal_metrics(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    res = await db.execute(select(Task).where(Task.assigned_to == current_user.id))
-    tasks = res.scalars().all()
+    res = await db.execute(
+        select(Task)
+        .join(task_assignees, (Task.id == task_assignees.c.task_id), isouter=True)
+        .where(
+            (Task.assigned_to == current_user.id) |
+            (task_assignees.c.user_id == current_user.id)
+        )
+    )
+    tasks = res.scalars().unique().all()
 
     total = len(tasks)
     completed = sum(1 for t in tasks if t.status == TaskStatus.COMPLETED)
@@ -478,3 +500,113 @@ async def personal_metrics(
         overdue=overdue,
         avg_progress=avg_prog,
     )
+
+
+@router.get("/export/csv", summary="Export all visible tasks to CSV")
+async def export_tasks_csv(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Query tasks the current user is allowed to access
+    query = select(Task).options(
+        selectinload(Task.department),
+        selectinload(Task.assignee),
+        selectinload(Task.assigner),
+        selectinload(Task.co_assignees),
+    )
+    if current_user.role_tier == 2:
+        query = query.where(Task.department_id == current_user.department_id)
+    elif current_user.role_tier == 3:
+        query = query.join(
+            task_assignees,
+            (Task.id == task_assignees.c.task_id),
+            isouter=True
+        ).where(
+            (Task.assigned_to == current_user.id) |
+            (task_assignees.c.user_id == current_user.id)
+        )
+        
+    result = await db.execute(query)
+    tasks = result.scalars().unique().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Task ID", "Brand Name", "Title", "Description", "Status", 
+        "Progress %", "Priority", "Department", "Assignee", "Assigner", 
+        "Co-Assignees", "Due Date", "Expected Delivery Date", "Is Overdue"
+    ])
+    
+    for t in tasks:
+        co_emails = ", ".join([c.email for c in t.co_assignees])
+        writer.writerow([
+            t.id, t.brand_name, t.title, t.description or "", t.status.value if hasattr(t.status, 'value') else t.status,
+            t.progress_percentage, t.priority.value if hasattr(t.priority, 'value') else t.priority,
+            t.department.name if t.department else "",
+            t.assignee.email if t.assignee else "",
+            t.assigner.email if t.assigner else "",
+            co_emails,
+            t.due_date.isoformat() if t.due_date else "",
+            t.expected_delivery.isoformat() if t.expected_delivery else "",
+            t.is_overdue
+        ])
+        
+    response = Response(content=output.getvalue(), media_type="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=tasks_export.csv"
+    return response
+
+
+@router.get("/audit/export/csv", summary="Export audit logs as CSV")
+async def export_audit_logs_csv(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_tier2),
+):
+    from app.models.user import TaskAuditLog
+    query = select(TaskAuditLog).options(
+        selectinload(TaskAuditLog.task),
+        selectinload(TaskAuditLog.user),
+    ).order_by(TaskAuditLog.created_at.asc())
+    
+    if current_user.role_tier == 2:
+        query = query.join(Task).where(Task.department_id == current_user.department_id)
+        
+    if start_date:
+        try:
+            start_dt = datetime.fromisoformat(start_date)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
+            query = query.where(TaskAuditLog.created_at >= start_dt)
+        except ValueError:
+            raise HTTPException(400, "Invalid start_date format. Use ISO format YYYY-MM-DD")
+            
+    if end_date:
+        try:
+            end_dt = datetime.fromisoformat(end_date)
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
+            query = query.where(TaskAuditLog.created_at <= end_dt)
+        except ValueError:
+            raise HTTPException(400, "Invalid end_date format. Use ISO format YYYY-MM-DD")
+
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Log ID", "Task ID", "Task Title", "User Email", "Action Type", 
+        "Old Value", "New Value", "Timestamp"
+    ])
+    
+    for l in logs:
+        writer.writerow([
+            l.id, l.task_id, l.task.title if l.task else "", l.user.email if l.user else "",
+            l.action_type, l.old_value or "", l.new_value or "",
+            l.created_at.isoformat() if l.created_at else ""
+        ])
+        
+    response = Response(content=output.getvalue(), media_type="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=audit_logs_export.csv"
+    return response
