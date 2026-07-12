@@ -95,10 +95,7 @@ venv\Scripts\alembic upgrade head
 cd backend
 venv\Scripts\python seed.py
 ```
-This creates the 4 departments and the default admin account:
-| Email | Password | Role |
-|---|---|---|
-| admin@voxomate.com | Admin@123 | Executive Admin (Tier 1) |
+This creates the 4 departments and the default admin account based on the settings defined in your `.env` configuration (retrieved from `ADMIN_EMAIL` and `ADMIN_PASSWORD`).
 
 ### 6. Backend — Start production/dev server
 - **Dev:** `backend\venv\Scripts\uvicorn app.main:app --reload --port 8001 --host 0.0.0.0 --app-dir backend`
