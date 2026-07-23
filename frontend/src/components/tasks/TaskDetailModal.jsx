@@ -73,6 +73,7 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
             await taskService.start(task.id);
             await refreshTask();
             showToast('Task started!');
+            onRefresh?.();
         } catch (e) {
             showToast(e.response?.data?.detail ?? 'Error', 'error');
         }
@@ -83,6 +84,7 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
             await taskService.submitReview(task.id);
             await refreshTask();
             showToast('Submitted for review!');
+            onRefresh?.();
         } catch (e) {
             showToast(e.response?.data?.detail ?? 'Error', 'error');
         }
@@ -94,6 +96,7 @@ export default function TaskDetailModal({ task: initialTask, onClose, onRefresh 
             await taskService.updateProgress(task.id, progress);
             await refreshTask();
             showToast('Progress updated!');
+            onRefresh?.();
         } catch (e) {
             showToast(e.response?.data?.detail ?? 'Error', 'error');
         } finally {

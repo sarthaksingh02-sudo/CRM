@@ -65,12 +65,26 @@ export default function TasksPage() {
         finally { setLoading(false); }
     }, [statusFilter, priorityFilter, overdueOnly]);
 
-    useEffect(() => { fetchTasks(); }, [fetchTasks]);
+    useEffect(() => {
+        fetchTasks();
+
+        const handleWsUpdate = (e) => {
+            const data = e.detail;
+            if (data.type === 'TASK_CREATED' || data.type === 'TASK_UPDATED') {
+                fetchTasks();
+            }
+        };
+        window.addEventListener('voxomate-ws-update', handleWsUpdate);
+
+        return () => {
+            window.removeEventListener('voxomate-ws-update', handleWsUpdate);
+        };
+    }, [fetchTasks]);
 
     const filtered = tasks.filter(t =>
         !search ||
-        t.title.toLowerCase().includes(search.toLowerCase()) ||
-        t.brand_name.toLowerCase().includes(search.toLowerCase())
+        (t.title || '').toLowerCase().includes(search.toLowerCase()) ||
+        (t.brand_name || '').toLowerCase().includes(search.toLowerCase())
     );
 
     const byStatus = (key) => filtered.filter(t => t.status === key);

@@ -38,3 +38,22 @@ export const deptService = {
     create: (name) => api.post('/departments/', { name }),
     monthlyReport: (id) => api.get(`/departments/${id}/monthly-report`),
 };
+
+export const notificationService = {
+    list: () => api.get('/notifications/'),
+};
+
+export const brandService = {
+    list: () => api.get('/brands/'),
+    get: (id) => api.get(`/brands/${id}`),
+    create: (data) => api.post('/brands/', data),
+    update: (id, data) => api.patch(`/brands/${id}`, data),
+    delete: (id) => api.delete(`/brands/${id}`),
+    queryReport: () => api.get('/brands/reports/queries'),
+    // Social accounts
+    addSocialAccount: (brandId, data) => api.post(`/brands/${brandId}/social-accounts`, data),
+    removeSocialAccount: (brandId, accountId) => api.delete(`/brands/${brandId}/social-accounts/${accountId}`),
+    // Assignments
+    addAssignment: (brandId, data) => api.post(`/brands/${brandId}/assignments`, data),
+    removeAssignment: (brandId, assignmentId) => api.delete(`/brands/${brandId}/assignments/${assignmentId}`),
+};

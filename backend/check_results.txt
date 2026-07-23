@@ -1,0 +1,15 @@
+--- ALL TASKS ---
+ID: 3 | Title: Verify Bell Popover | Brand ID: 1 | Status: in_progress
+Description: Verifying notifications for admin user
+----------------------------------------
+ID: 2 | Title: Verify Webhook Routing | Brand ID: 1 | Status: yet_to_start
+Description: Testing end to end routing engine
+----------------------------------------
+ID: 1 | Title: test1 | Brand ID: 1 | Status: in_progress
+Description: fast test
+----------------------------------------
+
+--- LINKED SOCIAL ACCOUNTS ---
+ID: 1 | Brand ID: 1 | Platform: instagram | Platform Account ID: 987654321
+ID: 2 | Brand ID: 2 | Platform: instagram | Platform Account ID: https://www.instagram.com/voxotesting/
+ID: 6 | Brand ID: 2 | Platform: instagram | Platform Account ID: 2494432963985342

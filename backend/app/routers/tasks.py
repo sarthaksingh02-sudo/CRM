@@ -80,6 +80,7 @@ async def create_task(
 
     task = Task(
         brand_name=payload.brand_name,
+        brand_id=payload.brand_id,
         title=payload.title,
         description=payload.description,
         priority=payload.priority,
@@ -98,7 +99,19 @@ async def create_task(
     db.add(task)
     await db.flush()
     await write_audit(db, task.id, current_user.id, "TASK_CREATED", None, task.title)
-    return await _load_task_with_relations(db, task.id)
+    await db.commit()
+    
+    full_task = await _load_task_with_relations(db, task.id)
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_CREATED",
+            "message": f"New task created: {task.title}",
+            "task_id": task.id
+        })
+    except Exception:
+        pass
+    return full_task
 
 
 @router.get("/", response_model=list[TaskRead], summary="List tasks (scoped by RBAC)")
@@ -184,7 +197,18 @@ async def update_task(
             setattr(task, field, value)
 
     await db.flush()
-    return await _load_task_with_relations(db, task.id)
+    await db.commit()
+    full_task = await _load_task_with_relations(db, task.id)
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": f"Task updated: {task.title}",
+            "task_id": task.id
+        })
+    except Exception:
+        pass
+    return full_task
 
 
 @router.delete("/{task_id}", status_code=204, summary="Delete task (Tier 1 & 2)")
@@ -199,6 +223,17 @@ async def delete_task(
         raise HTTPException(404, "Task not found")
     _assert_can_write_task(current_user, task)
     await db.delete(task)
+    await db.flush()
+    await db.commit()
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": "Task deleted",
+            "task_id": task_id
+        })
+    except Exception:
+        pass
 
 
 # ──────────────────────────── State Machine Endpoints ────────────────────────────
@@ -227,7 +262,18 @@ async def start_task(
     await write_audit(db, task.id, current_user.id, "STATUS_CHANGE", old_status, TaskStatus.IN_PROGRESS)
 
     await db.flush()
-    return await _load_task_with_relations(db, task.id)
+    await db.commit()
+    full_task = await _load_task_with_relations(db, task.id)
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": f"Task started: {task.title}",
+            "task_id": task.id
+        })
+    except Exception:
+        pass
+    return full_task
 
 
 @router.patch("/{task_id}/progress", response_model=TaskRead,
@@ -269,7 +315,18 @@ async def update_progress(
         )
 
     await db.flush()
-    return await _load_task_with_relations(db, task.id)
+    await db.commit()
+    full_task = await _load_task_with_relations(db, task.id)
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": f"Task progress updated: {task.title}",
+            "task_id": task.id
+        })
+    except Exception:
+        pass
+    return full_task
 
 
 @router.patch("/{task_id}/submit-review", response_model=TaskRead,
@@ -297,7 +354,18 @@ async def submit_for_review(
     await write_audit(db, task.id, current_user.id, "STATUS_CHANGE", old_status, TaskStatus.IN_REVIEW)
 
     await db.flush()
-    return await _load_task_with_relations(db, task.id)
+    await db.commit()
+    full_task = await _load_task_with_relations(db, task.id)
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": f"Task submitted for review: {task.title}",
+            "task_id": task.id
+        })
+    except Exception:
+        pass
+    return full_task
 
 
 @router.patch("/{task_id}/review-decision", response_model=TaskRead,
@@ -339,7 +407,18 @@ async def review_decision(
         db.add(comment)
 
     await db.flush()
-    return await _load_task_with_relations(db, task.id)
+    await db.commit()
+    full_task = await _load_task_with_relations(db, task.id)
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": f"Task review decision: {task.title}",
+            "task_id": task.id
+        })
+    except Exception:
+        pass
+    return full_task
 
 
 # ──────────────────────────── Comments ────────────────────────────
@@ -366,7 +445,18 @@ async def add_comment(
         .options(selectinload(TaskComment.user).selectinload(User.department))
         .where(TaskComment.id == comment.id)
     )
-    return res.scalar_one()
+    comment_data = res.scalar_one()
+    await db.commit()
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "TASK_UPDATED",
+            "message": f"New comment on task: {task.title}",
+            "task_id": task_id
+        })
+    except Exception:
+        pass
+    return comment_data
 
 
 @router.get("/{task_id}/comments", response_model=list[CommentRead], summary="Get comments")

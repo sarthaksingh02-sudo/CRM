@@ -1,4 +1,5 @@
 // Shared small components
+import { useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 
 // ── StatusBadge ──────────────────────────────────────────────
@@ -114,9 +115,18 @@ export function AssigneeChip({ user }) {
 
 // ── Toast ─────────────────────────────────────────────────────
 export function Toast({ message, type = 'success', onClose }) {
+    useEffect(() => {
+        if (!onClose) return;
+        const timer = setTimeout(() => {
+            onClose();
+        }, 5000);
+        return () => clearTimeout(timer);
+    }, [message, type, onClose]);
+
     return (
         <div className={`toast ${type}`} onClick={onClose} style={{ cursor: 'pointer' }}>
             {type === 'success' ? '✅ ' : '❌ '}{message}
         </div>
     );
 }
+

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { taskService, userService, deptService } from '../../services/taskService';
+import { taskService, userService, deptService, brandService } from '../../services/taskService';
 
 export default function CreateTaskModal({ onClose, onCreated }) {
     const [depts, setDepts] = useState([]);
     const [users, setUsers] = useState([]);
+    const [brands, setBrands] = useState([]);
     const [form, setForm] = useState({
-        brand_name: '', title: '', description: '',
+        brand_id: '', title: '', description: '',
         priority: 'medium', department_id: '',
         assigned_to: '', due_date: '', expected_delivery: '',
     });
@@ -17,6 +18,7 @@ export default function CreateTaskModal({ onClose, onCreated }) {
     useEffect(() => {
         deptService.list().then(r => setDepts(r.data)).catch(() => { });
         userService.list({ active_only: true }).then(r => setUsers(r.data)).catch(() => { });
+        brandService.list().then(r => setBrands(r.data.filter(b => b.status === 'active'))).catch(() => { });
     }, []);
 
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -28,6 +30,8 @@ export default function CreateTaskModal({ onClose, onCreated }) {
         try {
             await taskService.create({
                 ...form,
+                brand_id: form.brand_id ? Number(form.brand_id) : null,
+                brand_name: form.brand_id ? (brands.find(b => b.id === Number(form.brand_id))?.name || null) : null,
                 department_id: Number(form.department_id),
                 assigned_to: Number(form.assigned_to),
                 co_assignee_ids: coAssigneeIds.map(Number),
@@ -55,9 +59,14 @@ export default function CreateTaskModal({ onClose, onCreated }) {
                 <form onSubmit={handleSubmit}>
                     <div className="form-row">
                         <div className="form-group">
-                            <label className="form-label">Brand Name *</label>
-                            <input className="form-input" required value={form.brand_name}
-                                onChange={e => set('brand_name', e.target.value)} placeholder="e.g. Acme Corp" />
+                            <label className="form-label">Brand *</label>
+                            <select className="form-select" required value={form.brand_id}
+                                onChange={e => set('brand_id', e.target.value)}>
+                                <option value="">Select Brand…</option>
+                                {brands.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="form-group">
                             <label className="form-label">Priority</label>

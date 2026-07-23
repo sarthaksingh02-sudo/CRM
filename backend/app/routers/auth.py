@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from passlib.context import CryptContext
 
 from app.core.database import get_db
 from app.core.security import create_access_token
 from app.models.user import User
-from app.schemas.schemas import TokenResponse
+from app.schemas.schemas import TokenResponse, UserRead
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

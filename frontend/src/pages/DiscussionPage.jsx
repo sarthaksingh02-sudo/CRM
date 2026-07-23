@@ -31,12 +31,25 @@ export default function DiscussionPage() {
 
     useEffect(() => {
         fetchMessages();
-        // Setup polling every 3 seconds
+
+        const handleWsUpdate = (e) => {
+            const data = e.detail;
+            if (data.type === 'DISCUSSION_UPDATED' && data.sender_id !== user?.id) {
+                fetchMessages(true);
+            }
+        };
+        window.addEventListener('voxomate-ws-update', handleWsUpdate);
+
+        // Relaxed fallback polling every 15s (WebSocket handleWsUpdate handles real-time updates)
         const interval = setInterval(() => {
             fetchMessages(true);
-        }, 3000);
-        return () => clearInterval(interval);
-    }, []);
+        }, 15000);
+
+        return () => {
+            window.removeEventListener('voxomate-ws-update', handleWsUpdate);
+            clearInterval(interval);
+        };
+    }, [user?.id]);
 
     // Scroll to bottom when messages load or a new message is added
     useEffect(() => {

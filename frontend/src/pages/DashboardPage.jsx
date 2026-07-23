@@ -41,7 +41,21 @@ export default function DashboardPage() {
         finally { setLoading(false); }
     }, [user]);
 
-    useEffect(() => { fetch(); }, [fetch]);
+    useEffect(() => {
+        fetch();
+
+        const handleWsUpdate = (e) => {
+            const data = e.detail;
+            if (data.type === 'TASK_CREATED' || data.type === 'TASK_UPDATED') {
+                fetch();
+            }
+        };
+        window.addEventListener('voxomate-ws-update', handleWsUpdate);
+
+        return () => {
+            window.removeEventListener('voxomate-ws-update', handleWsUpdate);
+        };
+    }, [fetch]);
 
     if (loading) return <Spinner />;
 

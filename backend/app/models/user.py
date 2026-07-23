@@ -1,3 +1,4 @@
+from __future__ import annotations
 import enum
 from datetime import datetime, timezone
 from sqlalchemy import (
@@ -108,7 +109,10 @@ class Task(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    brand_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    brand_name: Mapped[str | None] = mapped_column(String(200), nullable=True)  # Legacy: use brand_id FK
+    brand_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("brands.id", ondelete="SET NULL"), nullable=True
+    )
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -142,6 +146,7 @@ class Task(Base):
     department: Mapped["Department"] = relationship("Department", back_populates="tasks")
     assignee: Mapped["User"] = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_tasks")
     assigner: Mapped["User"] = relationship("User", foreign_keys=[assigned_by], back_populates="created_tasks")
+    brand: Mapped["Brand | None"] = relationship("Brand", foreign_keys=[brand_id], lazy="selectin")
     co_assignees: Mapped[list["User"]] = relationship(
         "User", secondary=task_assignees, lazy="selectin"
     )

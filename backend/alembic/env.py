@@ -25,6 +25,7 @@ from app.models.user import (
     DiscussionMessage,
     task_assignees
 )
+from app.models.brands import Brand, SocialAccount, BrandAssignment  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

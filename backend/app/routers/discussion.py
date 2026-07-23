@@ -37,6 +37,18 @@ async def create_message(
     await db.flush()
     # Eagerly load relationships so Pydantic can serialize without lazy loading errors
     full_msg = await get_discussion_message_with_relations(msg.id, db)
+    await db.commit()
+    
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "DISCUSSION_UPDATED",
+            "message": f"New message from {current_user.first_name}.",
+            "sender_id": current_user.id
+        })
+    except Exception:
+        pass
+
     return full_msg
 
 
@@ -75,6 +87,17 @@ async def update_message(
     await db.flush()
     # Refresh to ensure any DB updates are reflected
     await db.refresh(msg)
+    await db.commit()
+
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "DISCUSSION_UPDATED",
+            "message": "Discussion message updated."
+        })
+    except Exception:
+        pass
+
     return msg
 
 
@@ -93,4 +116,15 @@ async def delete_message(
         raise HTTPException(403, "You do not have permission to delete this message")
         
     await db.delete(msg)
+    await db.flush()
+    await db.commit()
+
+    from app.core.websocket_manager import manager
+    try:
+        await manager.broadcast({
+            "type": "DISCUSSION_UPDATED",
+            "message": "Discussion message deleted."
+        })
+    except Exception:
+        pass
 

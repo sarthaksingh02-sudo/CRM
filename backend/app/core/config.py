@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@voxomate.com"
     ADMIN_PASSWORD: str = "Admin@123"
 
+    # Email / SMTP (for automated alerts)
+    EMAIL_HOST: str = "smtp.gmail.com"
+    EMAIL_PORT: int = 587
+    EMAIL_USER: str = "voxomate.imp@gmail.com"
+    EMAIL_PASSWORD: str = ""  # Set via env variable: EMAIL_PASSWORD
+    EMAIL_FROM: str = "voxomate.imp@gmail.com"
+    EMAILS_ENABLED: bool = False  # Set to True in prod once EMAIL_PASSWORD is set
+
+    # Webhook Verify Token
+    WEBHOOK_VERIFY_TOKEN: str = "voxomate_verify_token_placeholder"
+
     # Apply configuration parsing rules
     model_config = SettingsConfigDict(
         env_file=["backend/.env", ".env"],

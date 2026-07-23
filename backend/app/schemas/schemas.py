@@ -68,7 +68,8 @@ class UserDeactivate(BaseModel):
 # ──────────────────────────── Task Schemas ────────────────────────────
 
 class TaskCreate(BaseModel):
-    brand_name: str = Field(..., min_length=1, max_length=200)
+    brand_name: Optional[str] = Field(None, max_length=200)
+    brand_id: Optional[int] = None          # FK to brands table (preferred)
     title: str = Field(..., min_length=1, max_length=300)
     description: Optional[str] = None
     priority: str = Field(default="medium", pattern=r"^(low|medium|high)$")
@@ -80,7 +81,8 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    brand_name: Optional[str] = Field(None, min_length=1, max_length=200)
+    brand_name: Optional[str] = Field(None, max_length=200)
+    brand_id: Optional[int] = None
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     description: Optional[str] = None
     priority: Optional[str] = Field(None, pattern=r"^(low|medium|high)$")
@@ -117,7 +119,8 @@ class TaskAssigneeStartUpdate(BaseModel):
 
 class TaskRead(BaseModel):
     id: int
-    brand_name: str
+    brand_name: Optional[str]
+    brand_id: Optional[int] = None
     title: str
     description: Optional[str]
     status: str
