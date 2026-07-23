@@ -15,9 +15,19 @@ def parse_cors_origins(v: Any) -> list[str]:
     return v
 
 
+def validate_database_url(v: Any) -> str:
+    if isinstance(v, str):
+        # Convert postgresql:// and postgres:// to use the asyncpg dialect
+        if v.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + v[len("postgresql://"):]
+        elif v.startswith("postgres://"):
+            return "postgresql+asyncpg://" + v[len("postgres://"):]
+    return v
+
+
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "mysql+aiomysql://root:password@localhost:3306/voxomate"
+    DATABASE_URL: Annotated[str, BeforeValidator(validate_database_url)] = "mysql+aiomysql://root:password@localhost:3306/voxomate"
 
     # JWT
     SECRET_KEY: str = "CHANGE_ME_IN_PRODUCTION_VERY_LONG_SECRET"
