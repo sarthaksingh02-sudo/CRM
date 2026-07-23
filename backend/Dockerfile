@@ -23,4 +23,4 @@ COPY . .
 
 EXPOSE 8001
 
-CMD ["gunicorn", "app.main:app", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8001"]
+CMD ["sh", "-c", "alembic upgrade head && python seed.py && gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8001"]
