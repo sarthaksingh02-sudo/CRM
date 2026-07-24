@@ -1,5 +1,6 @@
 import csv
 import io
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -102,6 +103,29 @@ async def create_task(
     await db.commit()
     
     full_task = await _load_task_with_relations(db, task.id)
+    
+    # Send instant task assignment email notification asynchronously
+    if full_task.assignee and full_task.assignee.email:
+        from app.services.email_service import send_task_assigned_alert
+        assignee_name = f"{full_task.assignee.first_name} {full_task.assignee.last_name}"
+        brand_name = full_task.brand_name or "N/A"
+        if hasattr(full_task, "brand") and full_task.brand:
+            brand_name = full_task.brand.name
+        
+        assigned_by_name = f"{current_user.first_name} {current_user.last_name}"
+        due_date_str = full_task.due_date.strftime("%Y-%m-%d %H:%M")
+        
+        asyncio.create_task(
+            send_task_assigned_alert(
+                to_email=full_task.assignee.email,
+                assignee_name=assignee_name,
+                task_title=full_task.title,
+                brand_name=brand_name,
+                assigned_by_name=assigned_by_name,
+                due_date=due_date_str
+            )
+        )
+
     from app.core.websocket_manager import manager
     try:
         await manager.broadcast({
@@ -199,6 +223,30 @@ async def update_task(
     await db.flush()
     await db.commit()
     full_task = await _load_task_with_relations(db, task.id)
+    
+    # Send instant task assignment email notification on reassignment/update
+    if "assigned_to" in payload.model_dump(exclude_none=True):
+        if full_task.assignee and full_task.assignee.email:
+            from app.services.email_service import send_task_assigned_alert
+            assignee_name = f"{full_task.assignee.first_name} {full_task.assignee.last_name}"
+            brand_name = full_task.brand_name or "N/A"
+            if hasattr(full_task, "brand") and full_task.brand:
+                brand_name = full_task.brand.name
+            
+            assigned_by_name = f"{current_user.first_name} {current_user.last_name}"
+            due_date_str = full_task.due_date.strftime("%Y-%m-%d %H:%M")
+            
+            asyncio.create_task(
+                send_task_assigned_alert(
+                    to_email=full_task.assignee.email,
+                    assignee_name=assignee_name,
+                    task_title=full_task.title,
+                    brand_name=brand_name,
+                    assigned_by_name=assigned_by_name,
+                    due_date=due_date_str
+                )
+            )
+
     from app.core.websocket_manager import manager
     try:
         await manager.broadcast({
