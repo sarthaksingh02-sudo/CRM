@@ -34,6 +34,7 @@ def _send_smtp_email(to_email: str, subject: str, html_body: str) -> None:
 
 def _send_resend_email(to_email: str, subject: str, html_body: str) -> None:
     """Synchronous Resend API send — runs in a background thread via asyncio.to_thread."""
+    import urllib.error
     url = "https://api.resend.com/emails"
     headers = {
         "Authorization": f"Bearer {settings.RESEND_API_KEY}",
@@ -59,9 +60,14 @@ def _send_resend_email(to_email: str, subject: str, html_body: str) -> None:
         headers=headers,
         method="POST"
     )
-    with urllib.request.urlopen(req) as response:
-        resp_data = json.loads(response.read().decode("utf-8"))
-        logger.info("Resend Email API sent to %s (ID: %s) — Subject: %s", to_email, resp_data.get("id"), subject)
+    try:
+        with urllib.request.urlopen(req) as response:
+            resp_data = json.loads(response.read().decode("utf-8"))
+            logger.info("Resend Email API sent to %s (ID: %s) — Subject: %s", to_email, resp_data.get("id"), subject)
+    except urllib.error.HTTPError as err:
+        err_body = err.read().decode("utf-8")
+        logger.error("Resend API HTTP Error %d: %s. Response body: %s", err.code, err.reason, err_body)
+        raise Exception(f"Resend HTTP {err.code}: {err_body}") from err
 
 
 async def send_email(to_email: str, subject: str, html_body: str) -> bool:

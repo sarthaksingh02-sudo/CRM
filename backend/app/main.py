@@ -19,10 +19,27 @@ from app.routers import webhooks
 from app.services.scheduler import start_scheduler
 
 
+import logging
+logger = logging.getLogger("app.main")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Tables are created via Alembic migrations now (formal workflow)
     scheduler = start_scheduler()
+    
+    # Optional diagnostic startup test email to verify credentials/network
+    if settings.EMAILS_ENABLED:
+        import asyncio
+        from app.services.email_service import send_email
+        test_target = settings.EMAIL_USER or "sarthaksinghxiia1410@gmail.com"
+        logger.info("Scheduling diagnostic startup test email to %s...", test_target)
+        asyncio.create_task(send_email(
+            test_target,
+            "📣 VoxoMate CRM Email Startup Diagnostics Test",
+            "<h3>VoxoMate Email is online!</h3><p>If you see this email, your background email integration is working perfectly on Render!</p>"
+        ))
+        
     yield
     scheduler.shutdown(wait=False)
 
