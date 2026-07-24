@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 async def process_overdue_tasks() -> None:
     """Evaluate all incomplete tasks; mark overdue and roll expected_delivery forward."""
     logger.info("Running overdue task check…")
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     async with AsyncSessionLocal() as db:
@@ -67,7 +67,7 @@ async def check_high_priority_deadline_alerts() -> None:
     25 and 35 minutes from now (30-minute window). Send email alert to assignee.
     """
     logger.info("Running high-priority deadline alert check…")
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(timezone.utc)
     window_start = now + timedelta(minutes=25)
     window_end = now + timedelta(minutes=35)
 
@@ -90,7 +90,17 @@ async def check_high_priority_deadline_alerts() -> None:
             for task in tasks:
                 if task.assignee and task.assignee.email:
                     assignee_name = f"{task.assignee.first_name} {task.assignee.last_name}"
-                    minutes_left = int((task.expected_delivery - now).total_seconds() / 60)
+                    
+                    # Normalize subtraction to handle both naive and aware datetimes dynamically
+                    delivery_dt = task.expected_delivery
+                    now_dt = now
+                    if delivery_dt.tzinfo is None or now_dt.tzinfo is None:
+                        if delivery_dt.tzinfo is not None:
+                            delivery_dt = delivery_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                        if now_dt.tzinfo is not None:
+                            now_dt = now_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                            
+                    minutes_left = int((delivery_dt - now_dt).total_seconds() / 60)
                     brand_label = getattr(task, "brand_name", None) or "N/A"
                     # If brand relation loaded, use brand name
                     if hasattr(task, "brand") and task.brand:
