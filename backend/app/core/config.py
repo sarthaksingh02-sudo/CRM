@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "voxomate.imp@gmail.com"
     EMAILS_ENABLED: bool = False  # Set to True in prod once EMAIL_PASSWORD is set
 
+    # Alternative API-based Email Provider (e.g. for Render Free Tier)
+    RESEND_API_KEY: str = ""
+
     # Webhook Verify Token
     WEBHOOK_VERIFY_TOKEN: str = "voxomate_verify_token_placeholder"
 

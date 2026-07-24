@@ -5,6 +5,9 @@ Sender: voxomate.imp@gmail.com (configured via EMAIL_PASSWORD env variable)
 import asyncio
 import logging
 import smtplib
+import json
+import urllib.request
+import urllib.parse
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -26,7 +29,39 @@ def _send_smtp_email(to_email: str, subject: str, html_body: str) -> None:
         server.starttls()
         server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
         server.sendmail(settings.EMAIL_FROM, to_email, msg.as_string())
-    logger.info("Email sent to %s — Subject: %s", to_email, subject)
+    logger.info("SMTP Email sent to %s — Subject: %s", to_email, subject)
+
+
+def _send_resend_email(to_email: str, subject: str, html_body: str) -> None:
+    """Synchronous Resend API send — runs in a background thread via asyncio.to_thread."""
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # Resend requires domain authorization. If using generic Resend sandbox keys, 
+    # the sender must be onboarding@resend.dev.
+    from_email = settings.EMAIL_FROM
+    if "re_" in settings.RESEND_API_KEY and ("gmail.com" in from_email.lower() or "voxomate.com" in from_email.lower()):
+        from_email = "onboarding@resend.dev"
+        
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body
+    }
+    
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+    with urllib.request.urlopen(req) as response:
+        resp_data = json.loads(response.read().decode("utf-8"))
+        logger.info("Resend Email API sent to %s (ID: %s) — Subject: %s", to_email, resp_data.get("id"), subject)
 
 
 async def send_email(to_email: str, subject: str, html_body: str) -> bool:
@@ -34,12 +69,18 @@ async def send_email(to_email: str, subject: str, html_body: str) -> bool:
     Sends an HTML email asynchronously.
     Returns True on success, False if emails are disabled or sending fails.
     """
-    if not settings.EMAILS_ENABLED or not settings.EMAIL_PASSWORD:
+    if not settings.EMAILS_ENABLED:
         logger.debug("Emails disabled — skipping send to %s", to_email)
         return False
 
     try:
-        await asyncio.to_thread(_send_smtp_email, to_email, subject, html_body)
+        if settings.RESEND_API_KEY:
+            await asyncio.to_thread(_send_resend_email, to_email, subject, html_body)
+        else:
+            if not settings.EMAIL_PASSWORD:
+                logger.debug("SMTP EMAIL_PASSWORD configuration missing — skipping send to %s", to_email)
+                return False
+            await asyncio.to_thread(_send_smtp_email, to_email, subject, html_body)
         return True
     except Exception as exc:
         logger.error("Failed to send email to %s: %s", to_email, exc)
